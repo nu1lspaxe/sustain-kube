@@ -1,0 +1,23 @@
+# permissions for end users to view carbonestimators.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: sustain-kube
+    app.kubernetes.io/managed-by: kustomize
+  name: carbonestimator-viewer-role
+rules:
+- apiGroups:
+  - sustain-kube.com
+  resources:
+  - carbonestimators
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - sustain-kube.com
+  resources:
+  - carbonestimators/status
+  verbs:
+  - get

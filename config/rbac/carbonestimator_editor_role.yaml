@@ -1,0 +1,27 @@
+# permissions for end users to edit carbonestimators.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: sustain-kube
+    app.kubernetes.io/managed-by: kustomize
+  name: carbonestimator-editor-role
+rules:
+- apiGroups:
+  - sustain-kube.com
+  resources:
+  - carbonestimators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - sustain-kube.com
+  resources:
+  - carbonestimators/status
+  verbs:
+  - get

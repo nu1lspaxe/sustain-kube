@@ -1,0 +1,9 @@
+apiVersion: sustain-kube.com/v1alpha1
+kind: CarbonEstimator
+metadata:
+  labels:
+    app.kubernetes.io/name: sustain-kube
+    app.kubernetes.io/managed-by: kustomize
+  name: carbonestimator-sample
+spec:
+  # TODO(user): Add fields here
