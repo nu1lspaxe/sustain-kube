@@ -133,11 +133,6 @@ kubebuilder create api --version v1alpha1 --kind CarbonEstimator
 
   ```bash
   # Prometheus Operator: https://prometheus-operator.dev/docs/getting-started/installation/
-
-  # With Helm
-  helm install prometheus prometheus-community/kube-prometheus-stack
-
-  # With kubectl 
   git clone https://github.com/prometheus-operator/kube-prometheus.git
   kubectl create -f manifests/setup -f manifests
   ```
