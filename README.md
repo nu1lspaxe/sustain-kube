@@ -14,7 +14,7 @@
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/sustain-kube:tag
+make docker-build docker-push IMG=nu1lspaxe/sustain-kube:latest
 ```
 
 **NOTE:** This image ought to be published in the personal registry you specified.
@@ -30,7 +30,7 @@ make install
 **Deploy the Manager to the cluster with the image specified by `IMG`:**
 
 ```sh
-make deploy IMG=<some-registry>/sustain-kube:tag
+make deploy IMG=nu1lspaxe/sustain-kube:latest
 ```
 
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
@@ -174,10 +174,10 @@ metadata:
   name: carbonestimator-sample
 spec:
   prometheusURL: <prometheus_url>
-  criticalLevel: 10
-  warningLevel: 5
-  cpuPowerConsumption: '15' # power draw for cores
-  memoryPowerConsumption: '1.5' # power draw for memory
+  levelCritical: 10
+  levelWarning: 5
+  powerConsumptionCPU: '15' # power draw for cores
+  powerConsumptionMemory: '1.5' # power draw for memory
 ```
 
 ### Monitoring & Testing
