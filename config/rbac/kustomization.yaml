@@ -25,3 +25,5 @@ resources:
 - carbonestimator_editor_role.yaml
 - carbonestimator_viewer_role.yaml
 
+- prometheus_role.yaml
+- prometheus_role_binding.yaml
