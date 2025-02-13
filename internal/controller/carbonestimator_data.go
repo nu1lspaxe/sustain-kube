@@ -38,7 +38,6 @@ func checkPrometheusHealth(prometheusURL string) error {
 
 // fetchPrometheusMetric sends an HTTP GET request to the specified Prometheus query URL
 // and returns the first metric value as a float64.
-
 func fetchPrometheusMetric(queryURL string) (float64, error) {
 	resp, err := http.Get(queryURL)
 	if err != nil {

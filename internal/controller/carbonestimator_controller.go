@@ -18,9 +18,7 @@ package controller
 
 import (
 	"context"
-	"strconv"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -58,16 +56,7 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	if err := r.Get(ctx, req.NamespacedName, &carbonEstimator); err != nil {
 		if errors.IsNotFound(err) {
 			log.Log.Info("CarbonEstimator resource not found")
-
-			r.Metrics.PowerConsumption.Delete(prometheus.Labels{
-				"name":      req.Name,
-				"namespace": req.Namespace,
-			})
-
-			r.Metrics.CarbonEmission.Delete(prometheus.Labels{
-				"name":      req.Name,
-				"namespace": req.Namespace,
-			})
+			r.Metrics.Delete(req)
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -83,34 +72,24 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		carbonEstimator.Spec.MemoryPowerConsumption,
 	)
 
-	r.Metrics.PowerConsumption.With(prometheus.Labels{
-		"name":      req.Name,
-		"namespace": req.Namespace,
-	}).Set(consumption)
-
-	r.Metrics.CarbonEmission.With(prometheus.Labels{
-		"name":      req.Name,
-		"namespace": req.Namespace,
-	}).Set(consumption)
-
-	carbonEstimator.Status.Consumption = strconv.FormatFloat(consumption, 'f', 2, 64)
-	carbonEstimator.Status.Emission = carbonEstimator.Status.Consumption
-
 	if err != nil {
-		carbonEstimator.Status.State = "Error"
+		carbonEstimator.Error()
 		return ctrl.Result{}, err
 	}
 
-	if consumption > float64(carbonEstimator.Spec.CriticalLevel) {
-		carbonEstimator.Status.State = "Critical"
-	} else if consumption > float64(carbonEstimator.Spec.WarningLevel) {
-		carbonEstimator.Status.State = "Warning"
-	} else {
-		carbonEstimator.Status.State = "Normal"
-	}
+	r.Metrics.Update(
+		consumption,
+		consumption*1.1,
+		carbonEstimator.Spec.WarningLevel,
+		carbonEstimator.Spec.CriticalLevel,
+		req)
+
+	carbonEstimator.UpdateStatus(consumption, consumption*1.1)
 
 	if err := r.Status().Update(ctx, &carbonEstimator); err != nil {
-		carbonEstimator.Status.State = "Error"
+		log.Log.Error(err, "Failed to update CarbonEstimator status")
+		carbonEstimator.Error()
+
 		return ctrl.Result{}, err
 	}
 
