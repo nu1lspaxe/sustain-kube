@@ -2,7 +2,7 @@ package v1alpha1
 
 import (
 	"strconv"
-	"sustain_kube/utils"
+	"sustain_kube/internal/utils"
 )
 
 func (carbonEstimator *CarbonEstimator) UpdateStatus(consumption, emission float64) {
