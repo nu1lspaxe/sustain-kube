@@ -109,7 +109,7 @@ func calculateConsumption(prometheusURL, cpuPowerConsumption, memPowerConsumptio
 	cpuQuery := fmt.Sprintf(
 		"%s/api/v1/query?query=%s",
 		prometheusURL,
-		url.QueryEscape("sum(rate(container_cpu_usage_seconds_total[1h]))"),
+		url.QueryEscape("sum(rate(container_cpu_usage_seconds_total{container!=''}[5m]))"),
 	)
 
 	cpuUsage, err := fetchPrometheusMetric(cpuQuery)
@@ -121,7 +121,8 @@ func calculateConsumption(prometheusURL, cpuPowerConsumption, memPowerConsumptio
 	memQuery := fmt.Sprintf(
 		"%s/api/v1/query?query=%s",
 		prometheusURL,
-		url.QueryEscape("sum(container_memory_working_set_bytes / 1073741824)"))
+		url.QueryEscape("sum(container_memory_working_set_bytes / 1073741824)"),
+	)
 
 	memoryUsage, err := fetchPrometheusMetric(memQuery)
 	if err != nil {
