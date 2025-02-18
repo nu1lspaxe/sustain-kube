@@ -7,6 +7,7 @@ sudo apt-get install ufw
 sudo ufw enable
 
 # 2. Configure firewall rules
+sudo ufw allow 22 # Vagrant ssh
 sudo ufw allow 8285
 sudo ufw allow 8472
 sudo ufw allow 10250/tcp

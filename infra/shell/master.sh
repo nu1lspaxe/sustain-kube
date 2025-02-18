@@ -7,6 +7,7 @@ sudo apt-get install ufw
 sudo ufw enable
 
 # 2. Configure firewall rules
+sudo ufw allow 22 # Vagrant ssh
 sudo ufw allow 179/tcp
 sudo ufw allow 4789
 sudo ufw allow 6443/tcp # kubernetes API server
@@ -20,6 +21,7 @@ sudo ufw allow 10250/tcp # kubelet API
 sudo ufw allow 10251/tcp # kube-scheduler
 sudo ufw allow 10252/tcp # kube-controller-manager
 sudo ufw allow 10255/tcp
+sudo ufw enable
 sudo ufw reload
 
 # 3. Enable kernel modules and disable swap 
