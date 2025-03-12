@@ -5,6 +5,8 @@
 domain: sustain-kube.com
 layout:
 - go.kubebuilder.io/v4
+plugins:
+  helm.kubebuilder.io/v1-alpha: {}
 projectName: sustain-kube
 repo: sustain_kube
 resources:
