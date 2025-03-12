@@ -3,7 +3,7 @@ controllerManager:
   replicas: 1
   container:
     image:
-      repository: controller
+      repository: nu1lspaxe/sustain-kube
       tag: latest
     args:
       - "--leader-elect"
