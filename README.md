@@ -98,9 +98,9 @@ kubectl apply -f https://raw.githubusercontent.com/<org>/sustain-kube/<tag or br
 - [X] Retrieve data from Prometheus
 - [X] Calculate power consumption
 - [X] (Manual) Set up cluster (master node + 2 worker nodes)
-- [ ] (Auto) Set up cluster (master node + 2 worker nodes)
+- [X] (Auto) Set up cluster (master node + 2 worker nodes)
 - [ ] Calculate carbon emission with Electricity Maps
-- [ ] Expose result metrics to Prometheus
+- [X] Expose result metrics to Prometheus
 - [ ] Build Grafana dashboard
 
 ### Prerequisite

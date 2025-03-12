@@ -60,11 +60,11 @@ jobs:
 #          kubectl wait --namespace cert-manager --for=condition=available --timeout=300s deployment/cert-manager-webhook
 
 # TODO: Uncomment if Prometheus is enabled
-#      - name: Install Prometheus Operator CRDs
-#        run: |
-#          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-#          helm repo update
-#          helm install prometheus-crds prometheus-community/prometheus-operator-crds
+      - name: Install Prometheus Operator CRDs
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm install prometheus-crds prometheus-community/prometheus-operator-crds
 #
 #      - name: Install Prometheus via Helm
 #        run: |
@@ -72,9 +72,9 @@ jobs:
 #          helm repo update
 #          helm install prometheus prometheus-community/prometheus --namespace monitoring --create-namespace
 #
-#      - name: Wait for Prometheus to be ready
-#        run: |
-#          kubectl wait --namespace monitoring --for=condition=available --timeout=300s deployment/prometheus-server
+      - name: Wait for Prometheus to be ready
+        run: |
+          kubectl wait --namespace monitoring --for=condition=available --timeout=300s deployment/prometheus-server
 
       - name: Install Helm chart for project
         run: |
