@@ -53,8 +53,8 @@
         - name: Apply sysctl configurations
           command: sysctl --system
 
-        - name: Disable swap
-          command: swapoff -a
+        # - name: Disable swap
+          # command: swapoff -a
 
     - name: Install containerd
       block:
@@ -106,47 +106,57 @@
           notify:
             - Restart containerd service
 
-    - name: Install kubeadm, kubelet, and kubectl using snap
-      block:
-        - name: Install conntrack
-          ansible.builtin.apt:
-            name: conntrack
-            state: present
-            
-        - name: Install snapd
-          ansible.builtin.package:
-            name: snapd
-            state: present
+        - name: Install kubeadm, kubelet, and kubectl using apt repository
+          block:
+            - name: Install prerequisite packages
+              ansible.builtin.apt:
+                name:
+                  - apt-transport-https
+                  - ca-certificates
+                  - curl
+                  - gnupg
+                state: present
+                update_cache: yes
 
-        - name: Ensure snapd service is running
-          ansible.builtin.service:
-            name: snapd
-            state: started
-            enabled: true
+            - name: Create keyrings directory
+              ansible.builtin.file:
+                path: /etc/apt/keyrings
+                state: directory
+                mode: '0755'
 
-        - name: Install kubectl snap
-          ansible.builtin.command:
-            cmd: snap install kubectl --classic
+            - name: Add Kubernetes apt repository GPG key
+              ansible.builtin.shell:
+                cmd: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+                creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-        - name: Install kubelet snap
-          ansible.builtin.command:
-            cmd: snap install kubelet --classic
+            - name: Set permissions on GPG key
+              ansible.builtin.file:
+                path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+                mode: '0644'
 
-        - name: Install kubeadm snap
-          ansible.builtin.command:
-            cmd: snap install kubeadm --classic
+            - name: Add Kubernetes apt repository
+              ansible.builtin.apt_repository:
+                repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /"
+                state: present
+                filename: kubernetes
+                mode: '0644'
 
-        - name: Hold kubectl
-          ansible.builtin.command:
-            cmd: snap refresh --hold kubectl
+            - name: Update apt cache
+              ansible.builtin.apt:
+                update_cache: yes
 
-        - name: Hold kubelet
-          ansible.builtin.command:
-            cmd: snap refresh --hold kubelet
+            - name: Install Kubernetes components
+              ansible.builtin.apt:
+                name:
+                  - kubectl=1.32.*
+                  - kubeadm=1.32.*
+                  - kubelet=1.32.*
+                state: present
 
-        - name: Hold kubeadm
-          ansible.builtin.command:
-            cmd: snap refresh --hold kubeadm
+            - name: Hold Kubernetes packages at current version
+              ansible.builtin.command:
+                cmd: apt-mark hold kubelet kubeadm kubectl
+              changed_when: true
 
   handlers:
     - name: Reload and enable firewall
