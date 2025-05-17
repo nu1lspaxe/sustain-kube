@@ -9,6 +9,13 @@
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
+### Setup Cluster
+
+```bash
+vagrant plugin install vagrant-hostmanager
+vagrant plugin install vagrant-vmware-desktop
+```
+
 ### To Deploy on the cluster
 
 **Build and push your image to the location specified by `IMG`:**

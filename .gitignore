@@ -28,3 +28,4 @@ go.work
 
 .vagrant/*
 */.vagrant/*
+infra/kubeadm_join.txt

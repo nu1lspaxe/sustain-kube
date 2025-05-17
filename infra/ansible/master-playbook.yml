@@ -1,6 +1,6 @@
 ---
-- name: Configure firewall, enable kernel modules, install containerd and kubeadm
-  hosts: all
+- name: Configure master node, initialize Kubernetes, and install Cilium
+  hosts: k8s-master
   become: true
   collections:
     - community.general
@@ -12,24 +12,21 @@
         proto: 'tcp'
       notify:
         - Reload and enable firewall
-      
-    - name: Configure firewall rules
+
+    - name: Configure firewall rules for Kubernetes and Cilium
       community.general.ufw:
         rule: allow
         port: "{{ item.port }}"
         proto: "{{ item.proto }}"
       loop:
-        - { port: '179', proto: 'tcp' }
-        - { port: '4789', proto: 'udp' }
-        - { port: '6443', proto: 'tcp' }
-        - { port: '2379', proto: 'tcp' }
-        - { port: '2380', proto: 'tcp' }
-        - { port: '8285', proto: 'udp' }
-        - { port: '8472', proto: 'udp' }
-        - { port: '10250', proto: 'tcp' }
-        - { port: '10251', proto: 'tcp' }
-        - { port: '10252', proto: 'tcp' }
-        - { port: '10255', proto: 'tcp' }
+        - { port: '6443', proto: 'tcp' } # Kubernetes API server
+        - { port: '2379:2380', proto: 'tcp' } # etcd
+        - { port: '10250', proto: 'tcp' } # Kubelet
+        - { port: '10251', proto: 'tcp' } # kube-scheduler
+        - { port: '10252', proto: 'tcp' } # kube-controller-manager
+        - { port: '10255', proto: 'tcp' } # Kubelet read-only
+        - { port: '4240', proto: 'tcp' } # Cilium health checks
+        - { port: '12000', proto: 'tcp' } # Hubble UI (optional)
       notify:
         - Reload and enable firewall
 
@@ -40,7 +37,12 @@
             dest: /etc/modules-load.d/k8s.conf
             content: |
               overlay
-              br-netfilter
+              br_netfilter
+
+        - name: Enable kernel modules
+          shell: |
+            modprobe overlay
+            modprobe br_netfilter
 
         - name: Create /etc/sysctl.d/k8s.conf file
           copy:
@@ -53,8 +55,15 @@
         - name: Apply sysctl configurations
           command: sysctl --system
 
-        # - name: Disable swap
-          # command: swapoff -a
+        - name: Disable swap
+          command: swapoff -a
+          changed_when: true
+
+        - name: Remove swap entry from fstab
+          lineinfile:
+            path: /etc/fstab
+            regexp: '^.*\sswap\s'
+            state: absent
 
     - name: Install containerd
       block:
@@ -85,12 +94,18 @@
             enabled: yes
             state: started
 
-        - name: Create /etc/containerd/config.toml file
-          ansible.builtin.command: containerd config default
+        - name: Create containerd config directory
+          file:
+            path: /etc/containerd
+            state: directory
+            mode: '0755'
+
+        - name: Generate default containerd config
+          command: containerd config default
           register: containerd_config
           changed_when: false
-        
-        - name: Write into /etc/containerd/config.toml
+
+        - name: Write containerd config file
           copy:
             content: "{{ containerd_config.stdout }}"
             dest: /etc/containerd/config.toml
@@ -98,65 +113,249 @@
             group: root
             mode: '0644'
 
-        - name: Modify /etc/containerd/config.toml to enable SystemdCgroup
-          lineinfile:
+        - name: Enable SystemdCgroup
+          replace:
             path: /etc/containerd/config.toml
-            regexp: '^SystemdCgroup = false'
-            line: 'SystemdCgroup = true'
+            regexp: 'SystemdCgroup = false'
+            replace: 'SystemdCgroup = true'
           notify:
             - Restart containerd service
 
-        - name: Install kubeadm, kubelet, and kubectl using apt repository
-          block:
-            - name: Install prerequisite packages
-              ansible.builtin.apt:
-                name:
-                  - apt-transport-https
-                  - ca-certificates
-                  - curl
-                  - gnupg
-                state: present
-                update_cache: yes
+        - name: Ensure containerd is running
+          systemd:
+            name: containerd
+            state: restarted
+            daemon_reload: yes
 
-            - name: Create keyrings directory
-              ansible.builtin.file:
-                path: /etc/apt/keyrings
-                state: directory
-                mode: '0755'
+        - name: Wait for containerd to be ready
+          wait_for:
+            path: /run/containerd/containerd.sock
+            state: present
+            timeout: 30
 
-            - name: Add Kubernetes apt repository GPG key
-              ansible.builtin.shell:
-                cmd: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-                creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        - name: Verify containerd configuration
+          command: ctr version
+          register: ctr_version
+          changed_when: false
+          failed_when: false
 
-            - name: Set permissions on GPG key
-              ansible.builtin.file:
-                path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-                mode: '0644'
+        - name: Show containerd version
+          debug:
+            var: ctr_version.stdout_lines
 
-            - name: Add Kubernetes apt repository
-              ansible.builtin.apt_repository:
-                repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /"
-                state: present
-                filename: kubernetes
-                mode: '0644'
+    - name: Install kubeadm, kubelet, and kubectl using apt repository
+      block:
+        - name: Install prerequisite packages
+          ansible.builtin.apt:
+            name:
+              - apt-transport-https
+              - ca-certificates
+              - curl
+              - gnupg
+            state: present
+            update_cache: yes
 
-            - name: Update apt cache
-              ansible.builtin.apt:
-                update_cache: yes
+        - name: Create keyrings directory
+          ansible.builtin.file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: '0755'
 
-            - name: Install Kubernetes components
-              ansible.builtin.apt:
-                name:
-                  - kubectl=1.32.*
-                  - kubeadm=1.32.*
-                  - kubelet=1.32.*
-                state: present
+        - name: Add Kubernetes apt repository GPG key
+          ansible.builtin.shell:
+            cmd: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-            - name: Hold Kubernetes packages at current version
-              ansible.builtin.command:
-                cmd: apt-mark hold kubelet kubeadm kubectl
-              changed_when: true
+        - name: Set permissions on GPG key
+          ansible.builtin.file:
+            path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            mode: '0644'
+
+        - name: Add Kubernetes apt repository
+          ansible.builtin.apt_repository:
+            repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /"
+            state: present
+            filename: kubernetes
+            mode: '0644'
+
+        - name: Update apt cache
+          ansible.builtin.apt:
+            update_cache: yes
+
+        - name: Install Kubernetes components
+          ansible.builtin.apt:
+            name:
+              - kubectl=1.32.*
+              - kubeadm=1.32.*
+              - kubelet=1.32.*
+            state: present
+
+        - name: Hold Kubernetes packages at current version
+          ansible.builtin.command:
+            cmd: apt-mark hold kubelet kubeadm kubectl
+          changed_when: true
+
+    - name: Initialize Kubernetes control plane
+      command: >
+        kubeadm init
+        --pod-network-cidr=10.1.1.0/24
+        --apiserver-advertise-address=192.168.56.3
+        --apiserver-cert-extra-sans=localhost,127.0.0.1
+      register: kubeadm_init
+      changed_when: kubeadm_init.rc == 0
+      failed_when: kubeadm_init.rc != 0
+
+    - name: Create .kube directory for vagrant user
+      file:
+        path: /home/vagrant/.kube
+        state: directory
+        mode: '0755'
+        owner: vagrant
+        group: vagrant
+
+    - name: Copy admin.conf to vagrant's kubeconfig
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/vagrant/.kube/config
+        remote_src: yes
+        mode: '0644'
+        owner: vagrant
+        group: vagrant
+
+    - name: Update API server address in vagrant's kubeconfig
+      replace:
+        path: /home/vagrant/.kube/config
+        regexp: 'server: https://127.0.0.1:6443'
+        replace: 'server: https://192.168.56.3:6443'
+
+    - name: Ensure kubelet is running
+      systemd:
+        name: kubelet
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Wait for kubelet to be ready
+      wait_for:
+        port: 10248
+        host: 127.0.0.1
+        timeout: 60
+        delay: 5
+
+    - name: Wait for Kubernetes API server to be ready
+      uri:
+        url: https://192.168.56.3:6443/healthz
+        validate_certs: no
+        status_code: 200
+      register: api_health
+      retries: 30
+      delay: 10
+      until: api_health.status == 200
+      changed_when: false
+
+    - name: Verify kubectl configuration
+      command: kubectl cluster-info
+      register: cluster_info
+      changed_when: false
+      environment:
+        KUBECONFIG: /home/vagrant/.kube/config
+
+    - name: Show cluster info
+      debug:
+        var: cluster_info.stdout_lines
+
+    - name: Check kube-apiserver status
+      shell: ps aux | grep kube-apiserver
+      register: apiserver_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show API server status
+      debug:
+        var: apiserver_status.stdout_lines
+
+    - name: Verify kubectl can access the cluster
+      command: kubectl get nodes
+      register: nodes
+      changed_when: false
+      environment:
+        KUBECONFIG: /home/vagrant/.kube/config
+
+    - name: Show nodes
+      debug:
+        var: nodes.stdout_lines
+
+    - name: Capture kubeadm join command
+      shell: kubeadm token create --print-join-command
+      register: kubeadm_join
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Save kubeadm join command to file
+      copy:
+        content: "{{ kubeadm_join.stdout }}"
+        dest: /vagrant/kubeadm_join.txt
+        mode: '0644'
+
+    - name: Download Cilium CLI
+      get_url:
+        url: https://github.com/cilium/cilium-cli/releases/latest/download/cilium-linux-amd64.tar.gz
+        dest: /tmp/cilium-linux-amd64.tar.gz
+        mode: '0644'
+
+    - name: Extract Cilium CLI
+      unarchive:
+        src: /tmp/cilium-linux-amd64.tar.gz
+        dest: /usr/local/bin
+        remote_src: yes
+        mode: '0755'
+
+    - name: Remove Cilium CLI tarball
+      file:
+        path: /tmp/cilium-linux-amd64.tar.gz
+        state: absent
+
+    - name: Install Cilium
+      block:
+        - name: Set KUBECONFIG environment variable
+          set_fact:
+            KUBECONFIG: /home/vagrant/.kube/config
+
+        - name: Remove NoSchedule taint from master node
+          command: kubectl taint nodes k8s-master node-role.kubernetes.io/control-plane:NoSchedule-
+          register: taint_remove
+          changed_when: taint_remove.rc == 0
+          environment:
+            KUBECONFIG: /home/vagrant/.kube/config
+
+        - name: Install Cilium with explicit kubeconfig
+          command: >
+            cilium install
+            --version 1.15.6
+            --set ipam.mode=kubernetes
+            --set kubeProxyReplacement=true
+            --set hubble.enabled=true
+            --set hubble.relay.enabled=true
+            --set hubble.ui.enabled=true
+            --set k8sServiceHost=192.168.56.3
+            --set k8sServicePort=6443
+            --kubeconfig /home/vagrant/.kube/config
+          register: cilium_install
+          changed_when: cilium_install.rc == 0
+          environment:
+            KUBECONFIG: /home/vagrant/.kube/config
+
+        - name: Verify Cilium installation
+          command: cilium status
+          register: cilium_status
+          changed_when: false
+          environment:
+            KUBECONFIG: /home/vagrant/.kube/config
+
+        - name: Show Cilium status
+          debug:
+            var: cilium_status.stdout_lines
 
   handlers:
     - name: Reload and enable firewall

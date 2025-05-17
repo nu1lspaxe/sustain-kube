@@ -1,6 +1,6 @@
 ---
-- name: Configure firewall, enable kernel modules, install containerd and kubeadm
-  hosts: all
+- name: Configure worker node and join Kubernetes cluster
+  hosts: k8s-worker-*
   become: true
   collections:
     - community.general
@@ -13,16 +13,15 @@
       notify:
         - Reload and enable firewall
 
-    - name: Configure firewall rules
+    - name: Configure firewall rules for Kubernetes and Cilium
       community.general.ufw:
         rule: allow
         port: "{{ item.port }}"
         proto: "{{ item.proto }}"
       loop:
-        - { port: '8285', proto: 'tcp' }
-        - { port: '8472', proto: 'tcp' }
-        - { port: '10250', proto: 'tcp' }
-        - { port: '30000:32767', proto: 'tcp' }
+        - { port: '10250', proto: 'tcp' } # Kubelet
+        - { port: '4240', proto: 'tcp' } # Cilium health checks
+        - { port: '30000:32767', proto: 'tcp' } # NodePort range
       notify:
         - Reload and enable firewall
 
@@ -33,7 +32,7 @@
             dest: /etc/modules-load.d/k8s.conf
             content: |
               overlay
-              br-netfilter
+              br_netfilter
 
         - name: Create /etc/sysctl.d/k8s.conf file
           copy:
@@ -48,6 +47,13 @@
 
         - name: Disable swap
           command: swapoff -a
+          changed_when: true
+
+        - name: Remove swap entry from fstab
+          lineinfile:
+            path: /etc/fstab
+            regexp: '^.*\sswap\s'
+            state: absent
 
     - name: Install containerd
       block:
@@ -78,12 +84,18 @@
             enabled: yes
             state: started
 
-        - name: Create /etc/containerd/config.toml file
-          ansible.builtin.command: containerd config default
+        - name: Create containerd config directory
+          file:
+            path: /etc/containerd
+            state: directory
+            mode: '0755'
+
+        - name: Generate default containerd config
+          command: containerd config default
           register: containerd_config
           changed_when: false
-        
-        - name: Write into /etc/containerd/config.toml
+
+        - name: Write containerd config file
           copy:
             content: "{{ containerd_config.stdout }}"
             dest: /etc/containerd/config.toml
@@ -91,69 +103,215 @@
             group: root
             mode: '0644'
 
-        - name: Modify /etc/containerd/config.toml to enable SystemdCgroup
-          lineinfile:
+        - name: Enable SystemdCgroup
+          replace:
             path: /etc/containerd/config.toml
-            regexp: '^SystemdCgroup = false'
-            line: 'SystemdCgroup = true'
+            regexp: 'SystemdCgroup = false'
+            replace: 'SystemdCgroup = true'
           notify:
             - Restart containerd service
 
-        - name: Install kubeadm, kubelet, and kubectl using apt repository
-          block:
-            - name: Install prerequisite packages
-              ansible.builtin.apt:
-                name:
-                  - apt-transport-https
-                  - ca-certificates
-                  - curl
-                  - gnupg
-                state: present
-                update_cache: yes
+        - name: Ensure containerd is running
+          systemd:
+            name: containerd
+            state: restarted
 
-            - name: Create keyrings directory
-              ansible.builtin.file:
-                path: /etc/apt/keyrings
-                state: directory
-                mode: '0755'
+        - name: Wait for containerd to be ready
+          wait_for:
+            path: /run/containerd/containerd.sock
+            state: present
+            timeout: 30
 
-            - name: Add Kubernetes apt repository GPG key
-              ansible.builtin.shell:
-                cmd: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-                creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        - name: Verify containerd configuration
+          command: ctr version
+          register: ctr_version
+          changed_when: false
+          failed_when: false
 
-            - name: Set permissions on GPG key
-              ansible.builtin.file:
-                path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-                mode: '0644'
+        - name: Show containerd version
+          debug:
+            var: ctr_version.stdout_lines
 
-            - name: Add Kubernetes apt repository
-              ansible.builtin.apt_repository:
-                repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /"
-                state: present
-                filename: kubernetes
-                mode: '0644'
+    - name: Install kubeadm, kubelet, and kubectl using apt repository
+      block:
+        - name: Install prerequisite packages
+          ansible.builtin.apt:
+            name:
+              - apt-transport-https
+              - ca-certificates
+              - curl
+              - gnupg
+            state: present
+            update_cache: yes
 
-            - name: Update apt cache
-              ansible.builtin.apt:
-                update_cache: yes
+        - name: Create keyrings directory
+          ansible.builtin.file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: '0755'
 
-            - name: Install Kubernetes components
-              ansible.builtin.apt:
-                name:
-                  - kubectl=1.32.*
-                  - kubeadm=1.32.*
-                  - kubelet=1.32.*
-                state: present
+        - name: Add Kubernetes apt repository GPG key
+          ansible.builtin.shell:
+            cmd: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-            - name: Hold Kubernetes packages at current version
-              ansible.builtin.command:
-                cmd: apt-mark hold kubelet kubeadm kubectl
-              changed_when: true
+        - name: Set permissions on GPG key
+          ansible.builtin.file:
+            path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            mode: '0644'
+
+        - name: Add Kubernetes apt repository
+          ansible.builtin.apt_repository:
+            repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /"
+            state: present
+            filename: kubernetes
+            mode: '0644'
+
+        - name: Update apt cache
+          ansible.builtin.apt:
+            update_cache: yes
+
+        - name: Install Kubernetes components
+          ansible.builtin.apt:
+            name:
+              - kubectl=1.32.*
+              - kubeadm=1.32.*
+              - kubelet=1.32.*
+            state: present
+
+        - name: Hold Kubernetes packages at current version
+          ansible.builtin.command:
+            cmd: apt-mark hold kubelet kubeadm kubectl
+          changed_when: true
+
+        - name: Create kubelet config directory
+          file:
+            path: /var/lib/kubelet
+            state: directory
+            mode: '0755'
+
+        - name: Configure kubelet
+          copy:
+            dest: /var/lib/kubelet/config.yaml
+            content: |
+              apiVersion: kubelet.config.k8s.io/v1beta1
+              kind: KubeletConfiguration
+              cgroupDriver: systemd
+              failSwapOn: false
+            mode: '0644'
+
+        - name: Create kubelet service directory
+          file:
+            path: /etc/systemd/system/kubelet.service.d
+            state: directory
+            mode: '0755'
+
+        - name: Configure kubelet service
+          copy:
+            dest: /etc/systemd/system/kubelet.service.d/20-extra-args.conf
+            content: |
+              [Service]
+              Environment="KUBELET_EXTRA_ARGS=--container-runtime=remote --container-runtime-endpoint=unix:///run/containerd/containerd.sock --cgroup-driver=systemd --v=4"
+            mode: '0644'
+
+        - name: Reload systemd
+          systemd:
+            daemon_reload: yes
+
+        - name: Stop kubelet service
+          systemd:
+            name: kubelet
+            state: stopped
+          ignore_errors: yes
+
+        - name: Ensure containerd is running
+          systemd:
+            name: containerd
+            state: started
+            enabled: yes
+
+        - name: Wait for containerd socket
+          wait_for:
+            path: /run/containerd/containerd.sock
+            state: present
+            timeout: 30
+
+        - name: Wait for kubeadm join command file
+          wait_for:
+            path: /vagrant/kubeadm_join.txt
+            state: present
+            timeout: 300
+
+        - name: Read kubeadm join command
+          slurp:
+            src: /vagrant/kubeadm_join.txt
+          register: kubeadm_join_cmd
+
+        - name: Join worker to Kubernetes cluster
+          command: "{{ (kubeadm_join_cmd.content | b64decode).strip() }}"
+          changed_when: true
+
+        - name: Start kubelet service
+          systemd:
+            name: kubelet
+            state: started
+            enabled: yes
+
+        - name: Wait for kubelet to start
+          wait_for:
+            timeout: 10
+            delay: 2
+
+        - name: Check kubelet logs with more detail
+          command: journalctl -u kubelet -n 100 --no-pager
+          register: kubelet_logs
+          changed_when: false
+          failed_when: false
+
+        - name: Show kubelet logs
+          debug:
+            var: kubelet_logs.stdout_lines
+
+        - name: Check kubelet status
+          command: systemctl status kubelet
+          register: kubelet_status
+          changed_when: false
+          failed_when: false
+
+        - name: Show kubelet status
+          debug:
+            var: kubelet_status.stdout_lines
+
+        - name: Check kubelet configuration
+          command: kubelet --version
+          register: kubelet_version
+          changed_when: false
+          failed_when: false
+
+        - name: Show kubelet version
+          debug:
+            var: kubelet_version.stdout_lines
+
+        - name: Check containerd configuration
+          command: ctr info
+          register: containerd_info
+          changed_when: false
+          failed_when: false
+
+        - name: Show containerd info
+          debug:
+            var: containerd_info.stdout_lines
+
+        - name: Wait for kubelet to be ready
+          wait_for:
+            port: 10248
+            host: 127.0.0.1
+            timeout: 120
+            delay: 5
 
   handlers:
     - name: Reload and enable firewall
-      ufw:
+      community.general.ufw:
         state: enabled
         policy: allow
 
