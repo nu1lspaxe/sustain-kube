@@ -22,6 +22,7 @@
         - { port: '10250', proto: 'tcp' } # Kubelet
         - { port: '4240', proto: 'tcp' } # Cilium health checks
         - { port: '30000:32767', proto: 'tcp' } # NodePort range
+        - { port: '8443', proto: 'tcp' } # Service endpoint
       notify:
         - Reload and enable firewall
 

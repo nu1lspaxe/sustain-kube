@@ -28,6 +28,7 @@
         - { port: '4240', proto: 'tcp' } # Cilium health checks
         - { port: '9090', proto: 'tcp' } # Prometheus
         - { port: '12000', proto: 'tcp' } # Hubble UI (optional)
+        - { port: '8443', proto: 'tcp' } # Service endpoint
       notify:
         - Reload and enable firewall
 
@@ -199,7 +200,7 @@
     - name: Initialize Kubernetes control plane
       command: >
         kubeadm init
-        --pod-network-cidr=10.1.1.0/24
+        --pod-network-cidr=10.1.0.0/16
         --apiserver-advertise-address=192.168.56.3
         --apiserver-cert-extra-sans=localhost,127.0.0.1
       register: kubeadm_init
