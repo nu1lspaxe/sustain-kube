@@ -9,16 +9,33 @@
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
-### Setup Cluster
+### Setup the cluster
+
+**Automatically setup with vagrant**
+
+Make sure your local computer has installed Vagrant.
+If not, come to the [page](https://developer.hashicorp.com/vagrant/downloads) to find one that matches with your OS.
 
 ```bash
 vagrant plugin install vagrant-hostmanager
 vagrant plugin install vagrant-vmware-desktop
 ```
 
+**Install required dependencies**
+```bash
+sudo apt install make
+
+# Go Wiki (Ubuntu): https://go.dev/wiki/Ubuntu
+sudo add-apt-repository ppa:longsleep/golang-backports
+sudo apt update
+sudo apt install golang-go
+```
+
 ### To Deploy on the cluster
 
 **Build and push your image to the location specified by `IMG`:**
+
+(Skip the part if you're not developer/owner)
 
 ```sh
 make docker-build docker-push IMG=nu1lspaxe/sustain-kube:latest
@@ -31,6 +48,16 @@ Make sure you have the proper permission to the registry if the above commands d
 **Install the CRDs into the cluster:**
 
 ```sh
+# This operator will expose the custom metrics to Prometheus.
+# For simplicity, we just use prometheus-operator in this case.
+# Prometheus Operator: https://prometheus-operator.dev/docs/getting-started/installation/
+git clone https://github.com/prometheus-operator/kube-prometheus.git
+cd kube-prometheus
+kubectl create -f manifests/setup -f manifests
+
+# Clone the target operator repository
+git clone https://github.com/nu1lspaxe/sustain-kube.git
+cd sustain-kube
 make install
 ```
 
@@ -119,48 +146,11 @@ kubebuilder init --domain sustain-kube.com --repo sustain_kube
 kubebuilder create api --version v1alpha1 --kind CarbonEstimator
 ```
 
-### Build & Deploy
-
-- The `CustomResourceDefinition` will be created in `config/crd/bases/`
-
-  ```bash
-  make manifests
-  ```
-- Build docker container
-
-  ```bash
-  make docker-build IMG=nu1lspaxe/sustain-kube:latest 
-  ```
-- Push to docker hub
-
-  ```bash
-  docker push nu1lspaxe/sustain-kube:latest
-  ```
-- Install Prometheus (only one time after node started)
-
-  ```bash
-  # Prometheus Operator: https://prometheus-operator.dev/docs/getting-started/installation/
-  git clone https://github.com/prometheus-operator/kube-prometheus.git
-  kubectl create -f manifests/setup -f manifests
-  ```
-- Deploy the operator to cluster
-
-  > Apply `config/crd/bases/sustain-kube.com_carbonestimators.yaml` automatically
-  >
-
-  ```bash
-  make deploy IMG=nu1lspaxe/sustain-kube:latest
-  ```
-
 ### Operator & Custom Resource
 
-- Expose services
+- Expose services for local testing
   ```bash
-  kubectl port-forward service/<service_name> -n <namespace> 9090:9090 &
-  ```
-- Apply custom resource
-  ```bash
-  kubectl apply -f config/samples/_v1alpha1_carbonestimator.yaml
+  kubectl port-forward service/prometheus-k8s -n monitoring 9090:9090 --address 0.0.0.0 &
   ```
 - Check controller state
   ```bash
@@ -180,10 +170,10 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: carbonestimator-sample
 spec:
-  prometheusURL: <prometheus_url>
-  levelCritical: 10
-  levelWarning: 5
-  powerConsumptionCPU: '15' # power draw for cores
+  prometheusURL: http://prometheus-k8s.monitoring.svc.cluster.local:9090 # (replace)
+  levelCritical: 10 # (replace)
+  levelWarning: 5 # (replace)
+  powerConsumptionCPU: '15' # power draw for cores 
   powerConsumptionMemory: '1.5' # power draw for memory
 ```
 

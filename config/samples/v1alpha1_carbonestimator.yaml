@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: carbonestimator-sample
 spec:
-  prometheusURL: <prometheus_url>
-  criticalLevel: 10
-  warningLevel: 5
-  cpuPowerConsumption: '15' # power draw for cores
-  memoryPowerConsumption: '1.5' # power draw for memory
+  prometheusURL: http://prometheus-k8s.monitoring.svc.cluster.local:9090
+  levelCritical: 10
+  levelWarning: 5
+  powerConsumptionCPU: '15' # power draw for cores
+  powerConsumptionMemory: '1.5' # power draw for memory
