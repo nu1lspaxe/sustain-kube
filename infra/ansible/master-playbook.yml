@@ -26,6 +26,7 @@
         - { port: '10252', proto: 'tcp' } # kube-controller-manager
         - { port: '10255', proto: 'tcp' } # Kubelet read-only
         - { port: '4240', proto: 'tcp' } # Cilium health checks
+        - { port: '9090', proto: 'tcp' } # Prometheus
         - { port: '12000', proto: 'tcp' } # Hubble UI (optional)
       notify:
         - Reload and enable firewall
