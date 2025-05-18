@@ -17,13 +17,13 @@ func SetupMetrics(prefix string) Metrics {
 	carbonEstimatorMetrics := Metrics{
 		PowerConsumption: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: prefix,
-			Name:      "carbon_estimator_carbon_emission",
-			Help:      "Info about CarbonEstimator resource",
+			Name:      "carbon_estimator_power_consumption",
+			Help:      "Power consumption of the CarbonEstimator resource in Watts",
 		}, []string{"name", "namespace"}),
 		CarbonEmission: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: prefix,
-			Name:      "carbon_estimator_power_consumption",
-			Help:      "Info about CarbonEstimator resource",
+			Name:      "carbon_estimator_carbon_emission",
+			Help:      "Carbon emission of the CarbonEstimator resource in CO2e",
 		}, []string{"name", "namespace"}),
 		WarningLevel: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: prefix,
@@ -58,7 +58,7 @@ func (m *Metrics) Update(consumption, emission float64, warningLevel, criticalLe
 	m.CarbonEmission.With(prometheus.Labels{
 		"name":      req.Name,
 		"namespace": req.Namespace,
-	}).Set(consumption)
+	}).Set(emission)
 
 	m.WarningLevel.With(prometheus.Labels{
 		"name":      req.Name,
