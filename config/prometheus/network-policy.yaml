@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-sustain-kube-to-prometheus
+  name: sustain-kube-prometheus
   namespace: monitoring
 spec:
   podSelector:
