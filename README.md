@@ -181,28 +181,11 @@ spec:
 
 #### Check DNS Connection
 
-1. Create test Pod
-
-   ```bash
-   kubectl apply -f config/samples/alpine.yml
+1. Busybox testing
+   ```sh
+   kubectl run -i --tty --rm debug --image=busybox --namespace=default -- sh
    ```
 
-   ```yaml
-    apiVersion: v1
-    kind: Pod
-    metadata:
-      name: alpine
-      namespace: default
-    spec:
-      containers:
-      - image: alpine:latest
-        command:
-          - sleep
-          - "3600"
-        imagePullPolicy: IfNotPresent
-        name: alpine
-      restartPolicy: Always
-   ```
 2. Test connection and service healthy
 
    ```bash
