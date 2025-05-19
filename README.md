@@ -4,10 +4,11 @@
 
 ### Prerequisites
 
-- go version v1.23.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- Vagrant
+- Ansible (cannot install in Windows)
+- Go version v1.23.0+
+- Docker version 17.03+
+- kubectl version v1.11.3+
 
 ### Setup the cluster
 
@@ -19,6 +20,16 @@ If not, come to the [page](https://developer.hashicorp.com/vagrant/downloads) to
 ```bash
 vagrant plugin install vagrant-hostmanager
 vagrant plugin install vagrant-vmware-desktop
+```
+
+If you're using WSL, then you need more configuration:
+
+```bash
+vagrant plugin install virtualbox_WSL2
+
+# Append the following environment variable into ~/.bashrc or ~/.zshrc
+export VAGRANT_WSL_ENABLE_WINDOWS_ACCESS="1"
+export PATH="$PATH:/mnt/c/Program Files/Oracle/VirtualBox"
 ```
 
 **Install required dependencies**
