@@ -43,7 +43,7 @@ type CarbonEstimatorSpec struct {
 type CarbonEstimatorStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
+	CarbonIntensity string `json:"carbonIntensity,omitempty"` //碳強度（從 API 拿值，之後再配合comsumption算出emission）
 	Consumption string `json:"consumption,omitempty"`
 	Emission    string `json:"emission,omitempty"`
 	State       string `json:"state,omitempty"`

@@ -27,6 +27,8 @@ import (
 
 	sustainkubecomv1alpha1 "sustain_kube/api/v1alpha1"
 	"sustain_kube/internal/controller/metrics"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // CarbonEstimatorReconciler reconciles a CarbonEstimator object
@@ -77,14 +79,46 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
+	// 取得碳強度
+	// token := "9x2yz6oORL6UFoj9F1pL" // my token，待改成用 Secret 讀取@@
+	// 讀取 Secret
+	var secret corev1.Secret
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      "carbon-intensity-secret", 
+		Namespace: "system",                   // Secret 所在命名空間
+	}, &secret); err != nil {
+		log.Log.Error(err, "Unable to fetch secret")
+		return ctrl.Result{}, err
+	}
+
+	// 解析 Secret 中的 token
+	tokenBytes, ok := secret.Data["token"]
+	if !ok {
+		err := fmt.Errorf("token not found in secret")
+		log.Log.Error(err, "Missing token in secret")
+		return ctrl.Result{}, err
+	}
+
+	token := string(tokenBytes)  
+
+	//用token去抓carbonIntensity
+	carbonIntensity, err := getCarbonIntensity(token)
+	if err != nil {
+		log.Log.Error(err, "Failed to fetch carbon intensity")
+		return ctrl.Result{}, err
+	}
+
+	//存入 Status 的 CarbonIntensity
+	carbonEstimator.Status.CarbonIntensity = strconv.FormatFloat(carbonIntensity, 'f', 2, 64)
+
 	r.Metrics.Update(
 		consumption,
-		consumption*1.1,
+		consumption*carbonIntensity,
 		carbonEstimator.Spec.WarningLevel,
 		carbonEstimator.Spec.CriticalLevel,
 		req)
 
-	carbonEstimator.UpdateStatus(consumption, consumption*1.1)
+	carbonEstimator.UpdateStatus(consumption, consumption*carbonIntensity)
 
 	if err := r.Status().Update(ctx, &carbonEstimator); err != nil {
 		log.Log.Error(err, "Failed to update CarbonEstimator status")

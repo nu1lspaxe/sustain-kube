@@ -144,3 +144,48 @@ func calculateConsumption(prometheusURL, cpuPowerConsumption, memPowerConsumptio
 
 	return totalConsumption, nil
 }
+
+func getCarbonIntensity(token string) (float64, error) {
+	url := "https://api.electricitymap.org/v3/carbon-intensity/latest?zone=TW"
+
+	// HTTP GET
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("auth-token", token) 
+
+	// HTTP Request
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Log.Error(err, "Error closing carbon intensity API response body")
+		}
+	}()
+
+	// 若 API 請求失敗
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("carbon intensity API error: %s", string(body))
+	}
+
+	// 將回傳的 JSON 解析進 result
+	var result struct {
+		CarbonIntensity float64 `json:"carbonIntensity"`
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read carbon intensity response: %w", err)
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, fmt.Errorf("failed to parse carbon intensity JSON: %w", err)
+	}
+
+	return result.CarbonIntensity, nil
+}
