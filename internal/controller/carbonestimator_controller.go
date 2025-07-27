@@ -80,29 +80,34 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// 取得碳強度
-	// token := "9x2yz6oORL6UFoj9F1pL" // my token，待改成用 Secret 讀取@@
-	// 讀取 Secret
+	// 從 spec.SecretRef 取得 Secret 的 name 與 Namespace
+	if carbonEstimator.Spec.SecretRef == nil {
+		err := fmt.Errorf("SecretRef is not defined in spec")
+		log.Log.Error(err, "Missing SecretRef")
+		return ctrl.Result{}, err
+	}
+
 	var secret corev1.Secret
 	if err := r.Get(ctx, types.NamespacedName{
-		Name:      "carbon-intensity-secret", 
-		Namespace: "system",                   // Secret 所在命名空間
+		Name:      carbonEstimator.Spec.SecretRef.Name,
+		Namespace: carbonEstimator.Spec.SecretRef.Namespace,
 	}, &secret); err != nil {
 		log.Log.Error(err, "Unable to fetch secret")
 		return ctrl.Result{}, err
 	}
 
-	// 解析 Secret 中的 token
-	tokenBytes, ok := secret.Data["token"]
+	// 取得 Secret 中的 token
+	tokenBytes, ok := secret.Data["electricity-maps-token"]
 	if !ok {
 		err := fmt.Errorf("token not found in secret")
 		log.Log.Error(err, "Missing token in secret")
 		return ctrl.Result{}, err
 	}
-
-	token := string(tokenBytes)  
+	token := string(tokenBytes)
 
 	//用token去抓carbonIntensity
-	carbonIntensity, err := getCarbonIntensity(token)
+	zone := carbonEstimator.Spec.TimeZone
+	carbonIntensity, err := getCarbonIntensity(token, zone)
 	if err != nil {
 		log.Log.Error(err, "Failed to fetch carbon intensity")
 		return ctrl.Result{}, err
