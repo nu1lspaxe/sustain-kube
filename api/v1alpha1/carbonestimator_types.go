@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/api/core/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -38,19 +37,17 @@ type CarbonEstimatorSpec struct {
 	CPUPowerConsumption string `json:"powerConsumptionCPU"`
 	// +kubebuilder:validation:Pattern=`^([1-9]\d*(\.\d)?)$`
 	MemoryPowerConsumption string `json:"powerConsumptionMemory"`
-	// +kubebuilder:validation:Pattern=^[A-Z]{2}$
-	TimeZone string `json:"timeZone,omitempty"`
-	SecretRef *corev1.SecretReference `json:"secretRef,omitempty"`
 }
 
 // CarbonEstimatorStatus defines the observed state of CarbonEstimator.
 type CarbonEstimatorStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
 	CarbonIntensity string `json:"carbonIntensity,omitempty"` //碳強度（從 API 拿值，之後再配合comsumption算出emission）
-	Consumption string `json:"consumption,omitempty"`
-	Emission    string `json:"emission,omitempty"`
-	State       string `json:"state,omitempty"`
+	Consumption     string `json:"consumption,omitempty"`
+	Emission        string `json:"emission,omitempty"`
+	State           string `json:"state,omitempty"`
 }
 
 // +kubebuilder:object:root=true

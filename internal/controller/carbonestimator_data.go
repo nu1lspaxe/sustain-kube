@@ -145,15 +145,14 @@ func calculateConsumption(prometheusURL, cpuPowerConsumption, memPowerConsumptio
 	return totalConsumption, nil
 }
 
-func getCarbonIntensity(token string, zone string) (float64, error) {
-    url := fmt.Sprintf("https://api.electricitymap.org/v3/carbon-intensity/latest?zone=%s", zone)
+func getCarbonIntensity(token string) (float64, error) {
+	url := "https://api.electricitymap.org/v3/carbon-intensity/latest?zone=TW"
 
-	// HTTP GET
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("auth-token", token) 
+	req.Header.Set("auth-token", token)
 
 	// HTTP Request
 	client := &http.Client{Timeout: 5 * time.Second}

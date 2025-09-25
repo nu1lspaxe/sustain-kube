@@ -18,9 +18,12 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -79,41 +82,33 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	// 取得碳強度
-	// 從 spec.SecretRef 取得 Secret 的 name 與 Namespace
-	if carbonEstimator.Spec.SecretRef == nil {
-		err := fmt.Errorf("SecretRef is not defined in spec")
-		log.Log.Error(err, "Missing SecretRef")
-		return ctrl.Result{}, err
-	}
-
+	// read electricity map token from Secret
 	var secret corev1.Secret
 	if err := r.Get(ctx, types.NamespacedName{
-		Name:      carbonEstimator.Spec.SecretRef.Name,
-		Namespace: carbonEstimator.Spec.SecretRef.Namespace,
+		Name:      "carbon-intensity-secret",
+		Namespace: "sustain-kube-system",
 	}, &secret); err != nil {
-		log.Log.Error(err, "Unable to fetch secret")
+		log.Log.Error(err, "Unable to fetch Electricity Map secret")
 		return ctrl.Result{}, err
 	}
 
-	// 取得 Secret 中的 token
-	tokenBytes, ok := secret.Data["electricity-maps-token"]
+	// 解析 Secret 中的 token
+	tokenBytes, ok := secret.Data["token"]
 	if !ok {
-		err := fmt.Errorf("token not found in secret")
-		log.Log.Error(err, "Missing token in secret")
+		log.Log.Error(fmt.Errorf("token not found in secret"), "Missing token in secret")
 		return ctrl.Result{}, err
 	}
+
 	token := string(tokenBytes)
 
-	//用token去抓carbonIntensity
-	zone := carbonEstimator.Spec.TimeZone
-	carbonIntensity, err := getCarbonIntensity(token, zone)
+	// 用token去抓carbonIntensity
+	carbonIntensity, err := getCarbonIntensity(token)
 	if err != nil {
 		log.Log.Error(err, "Failed to fetch carbon intensity")
 		return ctrl.Result{}, err
 	}
 
-	//存入 Status 的 CarbonIntensity
+	// 存入 Status 的 CarbonIntensity
 	carbonEstimator.Status.CarbonIntensity = strconv.FormatFloat(carbonIntensity, 'f', 2, 64)
 
 	r.Metrics.Update(
