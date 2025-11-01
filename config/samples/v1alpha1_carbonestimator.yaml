@@ -4,6 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/name: sustain-kube
     app.kubernetes.io/managed-by: kustomize
+  namespace: sustain-kube-system
   name: carbonestimator-sample
 spec:
   prometheusURL: http://prometheus-k8s.monitoring.svc.cluster.local:9090

@@ -187,6 +187,10 @@ spec:
   levelWarning: 5 # (replace)
   powerConsumptionCPU: '15' # power draw for cores 
   powerConsumptionMemory: '1.5' # power draw for memory
+  timeZone: "TW" #region setting
+  secretRef:
+    name: carbon-intensity-secret
+    namespace: sustain-kube-system
 ```
 
 ### Monitoring & Testing

@@ -37,6 +37,14 @@ type CarbonEstimatorSpec struct {
 	CPUPowerConsumption string `json:"powerConsumptionCPU"`
 	// +kubebuilder:validation:Pattern=`^([1-9]\d*(\.\d)?)$`
 	MemoryPowerConsumption string `json:"powerConsumptionMemory"`
+
+	SecretRef *SecretRef `json:"secretRef,omitempty"`
+	TimeZone  string     `json:"timeZone,omitempty"`
+}
+
+type SecretRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 // CarbonEstimatorStatus defines the observed state of CarbonEstimator.
