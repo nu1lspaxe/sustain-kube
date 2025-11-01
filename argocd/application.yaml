@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sustain-kube
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/your-org/sustain-kube.git'
+    targetRevision: main
+    path: config/default
+    kustomize:
+      namePrefix: sustain-kube-
+      namespace: sustain-kube-system
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sustain-kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

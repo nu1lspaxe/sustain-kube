@@ -33,6 +33,7 @@ export PATH="$PATH:/mnt/c/Program Files/Oracle/VirtualBox"
 ```
 
 **Install required dependencies**
+
 ```bash
 sudo apt install make
 
@@ -144,9 +145,9 @@ kubectl apply -f https://raw.githubusercontent.com/<org>/sustain-kube/<tag or br
 - [X] Calculate power consumption
 - [X] (Manual) Set up cluster (master node + 2 worker nodes)
 - [X] (Auto) Set up cluster (master node + 2 worker nodes)
-- [ ] Calculate carbon emission with Electricity Maps
+- [X] Calculate carbon emission with Electricity Maps
 - [X] Expose result metrics to Prometheus
-- [ ] Build Grafana dashboard
+- [X] Build Grafana dashboard
 
 ### Prerequisite
 
@@ -193,10 +194,10 @@ spec:
 #### Check DNS Connection
 
 1. Busybox testing
+
    ```sh
    kubectl run -i --tty --rm debug --image=busybox --namespace=default -- sh
    ```
-
 2. Test connection and service healthy
 
    ```bash
