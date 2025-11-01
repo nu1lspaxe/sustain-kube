@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/your-org/sustain-kube.git'
+    repoURL: 'https://github.com/nu1lspaxe/sustain-kube.git'
     targetRevision: main
     path: config/default
     kustomize:
