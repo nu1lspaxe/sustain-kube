@@ -54,7 +54,7 @@ var _ = Describe("CarbonEstimator Controller", func() {
 			// mock Prometheus server
 			fakeProm = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprintln(w, `{
+				_, err := fmt.Fprintln(w, `{
 					"status": "success",
 					"data": {
 						"resultType": "vector",
@@ -66,6 +66,7 @@ var _ = Describe("CarbonEstimator Controller", func() {
 						]
 					}
 				}`)
+				Expect(err).NotTo(HaveOccurred())
 			}))
 
 			ns := &corev1.Namespace{

@@ -63,10 +63,11 @@ var _ = BeforeSuite(func() {
 
 	fakeProm = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`
+		_, err := w.Write([]byte(`
 		cpu_usage{pod="test"} 0.5
 		memory_usage{pod="test"} 1.2
 	`))
+		Expect(err).NotTo(HaveOccurred())
 	}))
 
 	By("bootstrapping test environment")
