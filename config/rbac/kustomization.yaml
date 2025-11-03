@@ -29,3 +29,6 @@ resources:
 
 - prometheus_role.yaml
 - prometheus_role_binding.yaml
+
+- core_role.yaml
+- core_role_binding.yaml
