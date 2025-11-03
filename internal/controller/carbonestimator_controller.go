@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -67,7 +66,8 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	if err := checkPrometheusHealth(carbonEstimator.Spec.PrometheusURL); err != nil {
-		log.Log.Error(err, "Prometheus is not healthy")
+		carbonEstimator.Error(err.Error())
+		_ = r.Status().Update(ctx, &carbonEstimator)
 		return ctrl.Result{}, err
 	}
 
@@ -78,7 +78,8 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	)
 
 	if err != nil {
-		carbonEstimator.Error()
+		carbonEstimator.Error(err.Error())
+		_ = r.Status().Update(ctx, &carbonEstimator)
 		return ctrl.Result{}, err
 	}
 
@@ -88,14 +89,16 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		Name:      "carbon-intensity-secret",
 		Namespace: "sustain-kube-system",
 	}, &secret); err != nil {
-		log.Log.Error(err, "Unable to fetch Electricity Map secret")
+		carbonEstimator.Error(err.Error())
+		_ = r.Status().Update(ctx, &carbonEstimator)
 		return ctrl.Result{}, err
 	}
 
 	// 解析 Secret 中的 token
 	tokenBytes, ok := secret.Data["token"]
 	if !ok {
-		log.Log.Error(fmt.Errorf("token not found in secret"), "Missing token in secret")
+		carbonEstimator.Error("token not found in secret")
+		_ = r.Status().Update(ctx, &carbonEstimator)
 		return ctrl.Result{}, err
 	}
 
@@ -104,7 +107,8 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	// 用token去抓carbonIntensity
 	carbonIntensity, err := getCarbonIntensity(token)
 	if err != nil {
-		log.Log.Error(err, "Failed to fetch carbon intensity")
+		carbonEstimator.Error(err.Error())
+		_ = r.Status().Update(ctx, &carbonEstimator)
 		return ctrl.Result{}, err
 	}
 
@@ -121,14 +125,12 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	carbonEstimator.UpdateStatus(consumption, consumption*carbonIntensity)
 
 	if err := r.Status().Update(ctx, &carbonEstimator); err != nil {
-		log.Log.Error(err, "Failed to update CarbonEstimator status")
-		carbonEstimator.Error()
-
+		carbonEstimator.Error(err.Error())
+		_ = r.Status().Update(ctx, &carbonEstimator)
 		return ctrl.Result{}, err
 	}
 
 	log.Log.Info("Successfully reconciled CarbonEstimator")
-
 	return ctrl.Result{}, nil
 }
 

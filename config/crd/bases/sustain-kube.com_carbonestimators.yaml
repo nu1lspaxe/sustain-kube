@@ -81,6 +81,8 @@ spec:
                 type: string
               emission:
                 type: string
+              errorMessage:
+                type: string
               state:
                 type: string
             type: object

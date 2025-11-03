@@ -21,9 +21,10 @@ func (carbonEstimator *CarbonEstimator) UpdateStatus(consumption, emission float
 }
 
 // Error sets the status of the CarbonEstimator to Error
-func (carbonEstimator *CarbonEstimator) Error() {
+func (carbonEstimator *CarbonEstimator) Error(msg string) {
 
 	carbonEstimator.Status.State = utils.ErrorStatus
 	carbonEstimator.Status.Consumption = utils.ErrorInt
 	carbonEstimator.Status.Emission = utils.ErrorInt
+	carbonEstimator.Status.ErrorMessage = msg
 }
