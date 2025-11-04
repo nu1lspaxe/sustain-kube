@@ -10,7 +10,6 @@ spec:
     targetRevision: main
     path: config/default
     kustomize:
-      namePrefix: sustain-kube-
       namespace: sustain-kube-system
   destination:
     server: https://kubernetes.default.svc
