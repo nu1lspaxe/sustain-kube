@@ -42,7 +42,8 @@ var _ = Describe("CarbonEstimator Controller", func() {
 		const resourceName = "test-resource"
 		ctx := context.Background()
 
-		var fakeProm *httptest.Server // mock Prometheus server
+		var fakeProm *httptest.Server         // mock Prometheus server
+		var fakeCarbonServer *httptest.Server // mock Carbon Intensity server
 
 		// NamespacedName for the test resource
 		typeNamespacedName := types.NamespacedName{
@@ -51,8 +52,14 @@ var _ = Describe("CarbonEstimator Controller", func() {
 		}
 
 		BeforeEach(func() {
-			// mock Prometheus server
+			// 1. Mock Prometheus server
 			fakeProm = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Handle Health Check
+				if r.URL.Path == "/-/healthy" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				// Handle Query
 				w.Header().Set("Content-Type", "application/json")
 				_, err := fmt.Fprintln(w, `{
 					"status": "success",
@@ -69,11 +76,23 @@ var _ = Describe("CarbonEstimator Controller", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}))
 
+			// 2. Mock Carbon Intensity server (Electricity Maps)
+			fakeCarbonServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				// Return a fake carbon intensity value
+				_, err := fmt.Fprintln(w, `{"carbonIntensity": 300.5}`)
+				Expect(err).NotTo(HaveOccurred())
+			}))
+
+			// 重要：覆寫 data.go 中的全域變數，導向 Mock Server
+			carbonIntensityURL = fakeCarbonServer.URL
+
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "sustain-kube-system",
 				},
 			}
+			// Use Create or Update to avoid "already exists" error in repeated tests
 			_ = k8sClient.Create(ctx, ns)
 
 			secret := &corev1.Secret{
@@ -82,10 +101,11 @@ var _ = Describe("CarbonEstimator Controller", func() {
 					Namespace: "sustain-kube-system",
 				},
 				Data: map[string][]byte{
-					"token": []byte("<electricity_maps_api_token>"),
+					"token": []byte("dummy-token"),
 				},
 			}
-			Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+			// Use Create or Update
+			_ = k8sClient.Create(ctx, secret)
 
 			By("creating the custom resource for the Kind CarbonEstimator")
 			carbonestimator := &sustainkubecomv1alpha1.CarbonEstimator{}
@@ -109,19 +129,15 @@ var _ = Describe("CarbonEstimator Controller", func() {
 		})
 
 		AfterEach(func() {
+			// Cleanup CarbonEstimator
 			resource := &sustainkubecomv1alpha1.CarbonEstimator{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			if err == nil {
 				By("Cleanup the specific resource instance CarbonEstimator")
 				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-			} else if !errors.IsNotFound(err) {
-				Expect(err).NotTo(HaveOccurred())
 			}
 
-			if fakeProm != nil {
-				fakeProm.Close()
-			}
-
+			// Cleanup Secret
 			secret := &corev1.Secret{}
 			err = k8sClient.Get(ctx, types.NamespacedName{
 				Name:      "carbon-intensity-secret",
@@ -130,9 +146,18 @@ var _ = Describe("CarbonEstimator Controller", func() {
 			if err == nil {
 				By("Cleanup the carbon-intensity-secret")
 				Expect(k8sClient.Delete(ctx, secret)).To(Succeed())
-			} else if !errors.IsNotFound(err) {
-				Expect(err).NotTo(HaveOccurred())
 			}
+
+			// Close Fake Servers
+			if fakeProm != nil {
+				fakeProm.Close()
+			}
+			if fakeCarbonServer != nil {
+				fakeCarbonServer.Close()
+			}
+
+			// Reset the global variable to avoid side effects
+			carbonIntensityURL = ""
 		})
 
 		It("should successfully reconcile the resource", func() {

@@ -12,6 +12,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// carbonIntensityURL can be overridden in tests to point to a mock server.
+var carbonIntensityURL string
+
 // checkPrometheusHealth verifies if Prometheus is healthy by querying its health endpoint.
 func checkPrometheusHealth(prometheusURL string) error {
 	healthURL := fmt.Sprintf("%s/-/healthy", prometheusURL)
@@ -146,7 +149,11 @@ func calculateConsumption(prometheusURL, cpuPowerConsumption, memPowerConsumptio
 }
 
 func getCarbonIntensity(token string) (float64, error) {
-	url := "https://api.electricitymap.org/v3/carbon-intensity/latest?zone=TW"
+	// allow overriding in tests
+	var url = carbonIntensityURL
+	if url == "" {
+		url = "https://api.electricitymap.org/v3/carbon-intensity/latest?zone=TW"
+	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
