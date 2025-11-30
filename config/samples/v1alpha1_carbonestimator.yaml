@@ -8,8 +8,8 @@ metadata:
   name: carbonestimator-sample
 spec:
   prometheusURL: http://prometheus-k8s.monitoring.svc.cluster.local:9090
-  levelCritical: 10
-  levelWarning: 5
+  levelCritical: 50
+  levelWarning: 35
   powerConsumptionCPU: '15' # power draw for cores
   powerConsumptionMemory: '1.5' # power draw for memory
   timeZone: "TW" #region setting
