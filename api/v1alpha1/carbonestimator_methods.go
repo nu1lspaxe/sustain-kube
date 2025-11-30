@@ -9,7 +9,7 @@ func (carbonEstimator *CarbonEstimator) UpdateStatus(consumption, emission float
 
 	carbonEstimator.Status.ErrorMessage = ""
 	carbonEstimator.Status.Consumption = strconv.FormatFloat(consumption, 'f', 2, 64)
-	carbonEstimator.Status.Emission = strconv.FormatFloat(consumption*1.1, 'f', 2, 64)
+	carbonEstimator.Status.Emission = strconv.FormatFloat(emission, 'f', 2, 64)
 
 	if consumption > float64(carbonEstimator.Spec.CriticalLevel) {
 		carbonEstimator.Status.State = utils.CriticalStatus

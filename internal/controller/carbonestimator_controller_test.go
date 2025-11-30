@@ -160,7 +160,7 @@ var _ = Describe("CarbonEstimator Controller", func() {
 			carbonIntensityURL = ""
 		})
 
-		It("should successfully reconcile the resource", func() {
+		It("should successfully reconcile the resource and update status", func() {
 			By("Reconciling the created resource")
 			metricsObj := metrics.SetupMetrics("test").MustRegister(ctrlMetrics.Registry)
 			controllerReconciler := &CarbonEstimatorReconciler{
@@ -173,6 +173,97 @@ var _ = Describe("CarbonEstimator Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
+
+			By("Checking the status of the resource")
+			resource := &sustainkubecomv1alpha1.CarbonEstimator{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
+
+			Expect(resource.Status.State).To(Equal("Critical")) // 1281 > 5 (CriticalLevel)
+			Expect(resource.Status.CarbonIntensity).To(Equal("300.50"))
+			Expect(resource.Status.Consumption).To(Equal("1281.00")) // (42*10.5) + (42*20.0) = 441 + 840 = 1281
+			Expect(resource.Status.Emission).To(Equal("384940.50"))  // 1281 * 300.5 = 384940.5
+			Expect(resource.Status.ErrorMessage).To(BeEmpty())
+		})
+
+		It("should set error status when Prometheus is unreachable", func() {
+			// Close the mock Prometheus server to simulate failure
+			fakeProm.Close()
+			fakeProm = nil // Set to nil so AfterEach doesn't panic
+
+			metricsObj := metrics.SetupMetrics("test_prom_fail").MustRegister(ctrlMetrics.Registry)
+			controllerReconciler := &CarbonEstimatorReconciler{
+				Client:  k8sClient,
+				Scheme:  k8sClient.Scheme(),
+				Metrics: metricsObj,
+			}
+
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			// Reconcile returns error, but we also want to check if Status is updated
+			Expect(err).To(HaveOccurred())
+
+			By("Checking the status for error")
+			resource := &sustainkubecomv1alpha1.CarbonEstimator{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
+
+			Expect(resource.Status.State).To(Equal("Error"))
+			Expect(resource.Status.ErrorMessage).NotTo(BeEmpty())
+		})
+
+		It("should set error status when Secret is missing", func() {
+			// Delete the secret
+			secret := &corev1.Secret{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      "carbon-intensity-secret",
+				Namespace: "sustain-kube-system",
+			}, secret)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, secret)).To(Succeed())
+
+			metricsObj := metrics.SetupMetrics("test_secret_fail").MustRegister(ctrlMetrics.Registry)
+			controllerReconciler := &CarbonEstimatorReconciler{
+				Client:  k8sClient,
+				Scheme:  k8sClient.Scheme(),
+				Metrics: metricsObj,
+			}
+
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).To(HaveOccurred())
+
+			By("Checking the status for error")
+			resource := &sustainkubecomv1alpha1.CarbonEstimator{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
+
+			Expect(resource.Status.State).To(Equal("Error"))
+			Expect(resource.Status.ErrorMessage).NotTo(BeEmpty())
+		})
+
+		It("should set error status when Carbon Intensity API fails", func() {
+			// Close the mock Carbon server to simulate failure
+			fakeCarbonServer.Close()
+			fakeCarbonServer = nil
+
+			metricsObj := metrics.SetupMetrics("test_carbon_fail").MustRegister(ctrlMetrics.Registry)
+			controllerReconciler := &CarbonEstimatorReconciler{
+				Client:  k8sClient,
+				Scheme:  k8sClient.Scheme(),
+				Metrics: metricsObj,
+			}
+
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).To(HaveOccurred())
+
+			By("Checking the status for error")
+			resource := &sustainkubecomv1alpha1.CarbonEstimator{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
+
+			Expect(resource.Status.State).To(Equal("Error"))
+			Expect(resource.Status.ErrorMessage).NotTo(BeEmpty())
 		})
 	})
 })
