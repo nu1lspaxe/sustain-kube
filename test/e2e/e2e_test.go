@@ -290,7 +290,9 @@ data:
 				tmpPromCM := filepath.Join(os.TempDir(), "mock_prom_cm.yaml")
 				Expect(os.WriteFile(tmpPromCM, []byte(nginxPromConf), 0644)).To(Succeed())
 
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "configmap", mockPromConfig, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "configmap", mockPromConfig,
+					"-n", namespace, "--ignore-not-found"))
 
 				cmd = exec.Command("kubectl", "apply", "-f", tmpPromCM)
 
@@ -366,7 +368,9 @@ data:
 				tmpCarbonCM := filepath.Join(os.TempDir(), "mock_carbon_cm.yaml")
 				Expect(os.WriteFile(tmpCarbonCM, []byte(nginxCarbonConf), 0644)).To(Succeed())
 
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "configmap", mockCarbonConfig, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "configmap", mockCarbonConfig,
+					"-n", namespace, "--ignore-not-found"))
 
 				cmd = exec.Command("kubectl", "apply", "-f", tmpCarbonCM)
 				_, err = utils.Run(cmd)
@@ -406,7 +410,9 @@ spec:
 				_, err = utils.Run(cmd)
 				Expect(err).To(Succeed())
 
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "service", mockCarbonName, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "service", mockCarbonName,
+					"-n", namespace, "--ignore-not-found"))
 
 				cmd = exec.Command("kubectl", "expose", "pod", mockCarbonName, "--port=80", "--target-port=80", "-n", namespace)
 				_, err = utils.Run(cmd)
@@ -425,7 +431,8 @@ spec:
 				Expect(err).To(Succeed())
 
 				By("waiting for Controller Deployment rollout to finish")
-				rolloutCmd := exec.Command("kubectl", "rollout", "status", "deployment/sustain-kube-controller-manager", "-n", namespace)
+				rolloutCmd := exec.Command(
+					"kubectl", "rollout", "status", "deployment/sustain-kube-controller-manager", "-n", namespace)
 				_, err = utils.Run(rolloutCmd)
 				Expect(err).To(Succeed())
 
@@ -452,20 +459,27 @@ spec:
 
 			AfterEach(func() {
 				// 清理所有資源
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "carbonestimator", estimatorName, "-n", namespace, "--ignore-not-found"))
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "service", mockPromName, "-n", namespace, "--ignore-not-found"))
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "pod", mockPromName, "-n", namespace, "--ignore-not-found"))
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "configmap", mockPromConfig, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "carbonestimator", estimatorName, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "service", mockPromName, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "pod", mockPromName, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "configmap", mockPromConfig, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "service", mockCarbonName, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "pod", mockCarbonName, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "configmap", mockCarbonConfig, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "delete", "secret", secretName, "-n", namespace, "--ignore-not-found"))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "set", "env", "deployment/sustain-kube-controller-manager", "CARBON_INTENSITY_URL-", "-n", namespace))
 
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "service", mockCarbonName, "-n", namespace, "--ignore-not-found"))
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "pod", mockCarbonName, "-n", namespace, "--ignore-not-found"))
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "configmap", mockCarbonConfig, "-n", namespace, "--ignore-not-found"))
-
-				_, _ = utils.Run(exec.Command("kubectl", "delete", "secret", secretName, "-n", namespace, "--ignore-not-found"))
-
-				_, _ = utils.Run(exec.Command("kubectl", "set", "env", "deployment/sustain-kube-controller-manager", "CARBON_INTENSITY_URL-", "-n", namespace))
-
-				_, _ = utils.Run(exec.Command("kubectl", "rollout", "status", "deployment/sustain-kube-controller-manager", "-n", namespace))
+				_, _ = utils.Run(exec.Command(
+					"kubectl", "rollout", "status", "deployment/sustain-kube-controller-manager", "-n", namespace))
 			})
 
 			It("should retrieve metrics from Mock Prometheus AND Carbon API, then update status", func() {
