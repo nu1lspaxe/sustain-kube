@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -43,6 +44,7 @@ type CarbonEstimatorReconciler struct {
 // +kubebuilder:rbac:groups=sustain-kube.com,resources=carbonestimators,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=sustain-kube.com,resources=carbonestimators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=sustain-kube.com,resources=carbonestimators/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -131,7 +133,7 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	log.Log.Info("Successfully reconciled CarbonEstimator")
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

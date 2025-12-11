@@ -84,7 +84,6 @@ var _ = Describe("CarbonEstimator Controller", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}))
 
-			// 重要：覆寫 data.go 中的全域變數，導向 Mock Server
 			carbonIntensityURL = fakeCarbonServer.URL
 
 			ns := &corev1.Namespace{
