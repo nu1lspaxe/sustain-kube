@@ -58,18 +58,23 @@
 
     - name: Install containerd
       block:
+        - name: Create docker keyrings directory
+          ansible.builtin.file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: '0755'
+
         - name: Download Docker GPG key
-          ansible.builtin.apt_key:
+          ansible.builtin.get_url:
             url: https://download.docker.com/linux/ubuntu/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: '0644'
 
         - name: Add Docker repository
           ansible.builtin.apt_repository:
-            repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ansible_distribution_release}} stable
+            repo: deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ansible_distribution_release}} stable
             filename: docker
             state: present
-
-        - name: Update apt package index
-          ansible.builtin.apt:
             update_cache: yes
 
         - name: Install containerd.io
@@ -96,6 +101,12 @@
           register: containerd_config
           changed_when: false
 
+        - name: Stop containerd service before configuration
+          systemd:
+            name: containerd
+            state: stopped
+          failed_when: false
+
         - name: Write containerd config file
           copy:
             content: "{{ containerd_config.stdout }}"
@@ -109,13 +120,11 @@
             path: /etc/containerd/config.toml
             regexp: 'SystemdCgroup = false'
             replace: 'SystemdCgroup = true'
-          notify:
-            - Restart containerd service
 
         - name: Ensure containerd is running
           systemd:
             name: containerd
-            state: restarted
+            state: started
 
         - name: Wait for containerd to be ready
           wait_for:
@@ -172,6 +181,12 @@
           ansible.builtin.apt:
             update_cache: yes
 
+        - name: Unhold Kubernetes packages before install or upgrade
+          ansible.builtin.command:
+            cmd: apt-mark unhold kubelet kubeadm kubectl
+          changed_when: false
+          failed_when: false
+
         - name: Install Kubernetes components
           ansible.builtin.apt:
             name:
@@ -179,6 +194,7 @@
               - kubeadm=1.32.*
               - kubelet=1.32.*
             state: present
+            allow_change_held_packages: yes
 
         - name: Hold Kubernetes packages at current version
           ansible.builtin.command:
@@ -237,20 +253,30 @@
             state: present
             timeout: 30
 
+        - name: Check if already joined to cluster
+          stat:
+            path: /etc/kubernetes/kubelet.conf
+          register: kubelet_conf
+
         - name: Wait for kubeadm join command file
           wait_for:
             path: /vagrant/kubeadm_join.txt
             state: present
             timeout: 300
+          when: not kubelet_conf.stat.exists
 
         - name: Read kubeadm join command
           slurp:
             src: /vagrant/kubeadm_join.txt
           register: kubeadm_join_cmd
+          when: not kubelet_conf.stat.exists
 
         - name: Join worker to Kubernetes cluster
           command: "{{ (kubeadm_join_cmd.content | b64decode).strip() }}"
+          args:
+            creates: /etc/kubernetes/kubelet.conf
           changed_when: true
+          when: not kubelet_conf.stat.exists
 
         - name: Start kubelet service
           systemd:

@@ -69,18 +69,23 @@
 
     - name: Install containerd
       block:
+        - name: Create docker keyrings directory
+          ansible.builtin.file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: '0755'
+
         - name: Download Docker GPG key
-          ansible.builtin.apt_key:
+          ansible.builtin.get_url:
             url: https://download.docker.com/linux/ubuntu/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: '0644'
 
         - name: Add Docker repository
           ansible.builtin.apt_repository:
-            repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ansible_distribution_release}} stable
+            repo: deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ansible_distribution_release}} stable
             filename: docker
             state: present
-
-        - name: Update apt package index
-          ansible.builtin.apt:
             update_cache: yes
 
         - name: Install containerd.io
@@ -95,6 +100,7 @@
             name: containerd
             enabled: yes
             state: started
+            daemon_reload: yes
 
         - name: Create containerd config directory
           file:
@@ -106,6 +112,12 @@
           command: containerd config default
           register: containerd_config
           changed_when: false
+
+        - name: Stop containerd service before configuration
+          systemd:
+            name: containerd
+            state: stopped
+          failed_when: false
 
         - name: Write containerd config file
           copy:
@@ -120,13 +132,11 @@
             path: /etc/containerd/config.toml
             regexp: 'SystemdCgroup = false'
             replace: 'SystemdCgroup = true'
-          notify:
-            - Restart containerd service
 
         - name: Ensure containerd is running
           systemd:
             name: containerd
-            state: restarted
+            state: started
             daemon_reload: yes
 
         - name: Wait for containerd to be ready
@@ -184,6 +194,12 @@
           ansible.builtin.apt:
             update_cache: yes
 
+        - name: Unhold Kubernetes packages before install or upgrade
+          ansible.builtin.command:
+            cmd: apt-mark unhold kubelet kubeadm kubectl
+          changed_when: false
+          failed_when: false
+
         - name: Install Kubernetes components
           ansible.builtin.apt:
             name:
@@ -191,6 +207,7 @@
               - kubeadm=1.32.*
               - kubelet=1.32.*
             state: present
+            allow_change_held_packages: yes
 
         - name: Hold Kubernetes packages at current version
           ansible.builtin.command:
@@ -203,6 +220,8 @@
         --pod-network-cidr=10.1.0.0/16
         --apiserver-advertise-address=192.168.56.3
         --apiserver-cert-extra-sans=localhost,127.0.0.1
+      args:
+        creates: /etc/kubernetes/admin.conf
       register: kubeadm_init
       changed_when: kubeadm_init.rc == 0
       failed_when: kubeadm_init.rc != 0
@@ -328,6 +347,15 @@
           command: kubectl taint nodes k8s-master node-role.kubernetes.io/control-plane:NoSchedule-
           register: taint_remove
           changed_when: taint_remove.rc == 0
+          failed_when: false
+          environment:
+            KUBECONFIG: /home/vagrant/.kube/config
+
+        - name: Check if Cilium is already installed
+          command: cilium status
+          register: cilium_check
+          changed_when: false
+          failed_when: false
           environment:
             KUBECONFIG: /home/vagrant/.kube/config
 
@@ -345,6 +373,7 @@
             --kubeconfig /home/vagrant/.kube/config
           register: cilium_install
           changed_when: cilium_install.rc == 0
+          when: cilium_check.rc != 0
           environment:
             KUBECONFIG: /home/vagrant/.kube/config
 

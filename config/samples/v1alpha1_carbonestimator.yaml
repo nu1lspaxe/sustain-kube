@@ -7,11 +7,10 @@ metadata:
   namespace: sustain-kube-system
   name: carbonestimator-sample
 spec:
-  prometheusURL: http://prometheus-k8s.monitoring.svc.cluster.local:9090
+  prometheusURL: http://mock-power-service.sustain-kube-system.svc.cluster.local:80
   levelCritical: 50
   levelWarning: 35
-  powerConsumptionCPU: '15' # power draw for cores
-  powerConsumptionMemory: '1.5' # power draw for memory
+  powerMetricQuery: "sum(node_power_watts)" # optional user-defined prometheus query
   timeZone: "TW" #region setting
   secretRef:
     name: carbon-intensity-secret

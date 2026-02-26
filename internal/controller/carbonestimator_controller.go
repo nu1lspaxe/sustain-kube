@@ -75,8 +75,7 @@ func (r *CarbonEstimatorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	consumption, err := calculateConsumption(
 		carbonEstimator.Spec.PrometheusURL,
-		carbonEstimator.Spec.CPUPowerConsumption,
-		carbonEstimator.Spec.MemoryPowerConsumption,
+		carbonEstimator.Spec.PowerMetricQuery,
 	)
 
 	if err != nil {

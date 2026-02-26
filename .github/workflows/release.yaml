@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  IMG: ghcr.io/${{ github.repository }}/sustain-kube
+  TAG: ${{ github.sha }}
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMG }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            IMG=${{ env.IMG }}:${{ steps.meta.outputs.version || github.sha }}
+
+  build-installer:
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.0'
+
+      - name: Install make & kustomize
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Extract tag name
+        id: tag
+        run: echo "name=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_OUTPUT
+
+      - name: Build installer
+        run: |
+          make build-installer IMG=${{ env.IMG }}:${{ steps.tag.outputs.name }}
+          mkdir -p release
+          cp dist/install.yaml release/install-${{ steps.tag.outputs.name }}.yaml
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/install-*.yaml
+          name: Release ${{ steps.tag.outputs.name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Upload install.yaml to branch (for raw URL usage)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b release-artifacts || git checkout release-artifacts
+          mkdir -p dist
+          cp release/install-${{ steps.tag.outputs.name }}.yaml dist/install.yaml
+          git add dist/install.yaml
+          git commit -m "chore: update install.yaml for ${{ steps.tag.outputs.name }}"
+          git pull origin release-artifacts || true
+          cp release/install-${{ steps.tag.outputs.name }}.yaml dist/install.yaml
+          git add dist/install.yaml
+          git commit -m "chore: update install.yaml for ${{ steps.tag.outputs.name }}" || echo "No changes to commit"
+          git push origin release-artifacts

@@ -45,11 +45,9 @@ spec:
               levelWarning:
                 minimum: 1
                 type: integer
-              powerConsumptionCPU:
-                pattern: ^([1-9]\d*(\.\d)?)$
-                type: string
-              powerConsumptionMemory:
-                pattern: ^([1-9]\d*(\.\d)?)$
+              powerMetricQuery:
+                description: Optional query to fetch power consumption from Prometheus
+                  (e.g. sum(node_power_watts))
                 type: string
               prometheusURL:
                 type: string
@@ -68,8 +66,6 @@ spec:
             required:
             - levelCritical
             - levelWarning
-            - powerConsumptionCPU
-            - powerConsumptionMemory
             - prometheusURL
             type: object
           status:

@@ -68,7 +68,7 @@ var _ = Describe("CarbonEstimator Controller", func() {
 						"result": [
 							{
 								"metric": {},
-								"value": [ 1234567890, "42" ]
+								"value": [ 1234567890, "100.5" ]
 							}
 						]
 					}
@@ -116,11 +116,10 @@ var _ = Describe("CarbonEstimator Controller", func() {
 						Namespace: "default",
 					},
 					Spec: sustainkubecomv1alpha1.CarbonEstimatorSpec{
-						PrometheusURL:          fakeProm.URL,
-						CPUPowerConsumption:    "10.5",
-						MemoryPowerConsumption: "20.0",
-						WarningLevel:           1,
-						CriticalLevel:          5,
+						PrometheusURL:    fakeProm.URL,
+						PowerMetricQuery: "sum(node_power_watts)",
+						WarningLevel:     1,
+						CriticalLevel:    5,
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -177,10 +176,10 @@ var _ = Describe("CarbonEstimator Controller", func() {
 			resource := &sustainkubecomv1alpha1.CarbonEstimator{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
 
-			Expect(resource.Status.State).To(Equal("Critical")) // 1281 > 5 (CriticalLevel)
+			Expect(resource.Status.State).To(Equal("Critical")) // 100.5 > 5 (CriticalLevel)
 			Expect(resource.Status.CarbonIntensity).To(Equal("300.50"))
-			Expect(resource.Status.Consumption).To(Equal("1281.00")) // (42*10.5) + (42*20.0) = 441 + 840 = 1281
-			Expect(resource.Status.Emission).To(Equal("384940.50"))  // 1281 * 300.5 = 384940.5
+			Expect(resource.Status.Consumption).To(Equal("100.50")) // returns 100.5
+			Expect(resource.Status.Emission).To(Equal("30200.25"))  // 100.5 * 300.5 = 30200.25
 			Expect(resource.Status.ErrorMessage).To(BeEmpty())
 		})
 

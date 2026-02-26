@@ -33,10 +33,9 @@ type CarbonEstimatorSpec struct {
 	WarningLevel uint `json:"levelWarning"`
 	// +kubebuilder:validation:Minimum=1
 	CriticalLevel uint `json:"levelCritical"`
-	// +kubebuilder:validation:Pattern=`^([1-9]\d*(\.\d)?)$`
-	CPUPowerConsumption string `json:"powerConsumptionCPU"`
-	// +kubebuilder:validation:Pattern=`^([1-9]\d*(\.\d)?)$`
-	MemoryPowerConsumption string `json:"powerConsumptionMemory"`
+	// Optional query to fetch power consumption from Prometheus (e.g. sum(node_power_watts))
+	// +optional
+	PowerMetricQuery string `json:"powerMetricQuery,omitempty"`
 
 	SecretRef *SecretRef `json:"secretRef,omitempty"`
 	TimeZone  string     `json:"timeZone,omitempty"`

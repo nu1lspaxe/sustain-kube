@@ -47,10 +47,8 @@ func TestFetchPrometheusMetricAndCalculateConsumption(t *testing.T) {
 		}
 		var val string
 		switch {
-		case q == "sum(rate(container_cpu_usage_seconds_total{container!=''}[5m]))":
-			val = "2.5"
-		case q == "sum(container_memory_working_set_bytes / 1073741824)":
-			val = "1.5"
+		case q == "sum(node_power_watts)":
+			val = "55.5"
 		default:
 			// fallback
 			val = "0"
@@ -65,18 +63,24 @@ func TestFetchPrometheusMetricAndCalculateConsumption(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// calculateConsumption will query ts.URL/api/v1/query...; supply cpu and mem power values
-	c, err := calculateConsumption(ts.URL, "10", "20")
+	// calculateConsumption will query ts.URL/api/v1/query...; supply a custom query
+	c, err := calculateConsumption(ts.URL, "sum(node_power_watts)")
 	if err != nil {
 		t.Fatalf("calculateConsumption failed: %v", err)
 	}
 
-	// expected: (cpuUsage * cpuPower) + (memUsage * memPower)
-	// cpuUsage=2.5, cpuPower=10 => 25
-	// memUsage=1.5, memPower=20 => 30
-	// total = 55
-	if c != 55 {
-		t.Fatalf("unexpected consumption: got %v want %v", c, 55)
+	if c != 55.5 {
+		t.Fatalf("unexpected consumption: got %v want %v", c, 55.5)
+	}
+
+	// test empty query uses default "sum(node_power_watts)"
+	cEmpty, err := calculateConsumption(ts.URL, "")
+	if err != nil {
+		t.Fatalf("calculateConsumption with empty default failed: %v", err)
+	}
+
+	if cEmpty != 55.5 {
+		t.Fatalf("unexpected consumption for empty query default: got %v want %v", cEmpty, 55.5)
 	}
 }
 
