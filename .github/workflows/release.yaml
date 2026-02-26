@@ -8,7 +8,7 @@ on:
     branches: [ main ]
 
 env:
-  IMG: ghcr.io/${{ github.repository }}/sustain-kube
+  IMG: ghcr.io/${{ github.repository }}
   TAG: ${{ github.sha }}
 
 jobs:
